@@ -2,6 +2,8 @@ import os
 import sqlite3
 import datetime
 from typing import List
+import re
+
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -59,9 +61,6 @@ class HistoryItem(BaseModel):
 
 
 SYSTEM_PROMPT = """
-Has recibido esta pregunta: "$pregunta".
-La respuesta correcta a esta pregunta es:"${respuestasLocales.random()}".
-La parte del contexto que se refiere a esta pregunta es:"${contexto.random()}"
 El contexto completo es el siguiente:
 El que te pregunta se llama Marco, tiene 24 años, es español.
 Marco está estudiando en Marsella (Francia), haciendo un doctorado en física.
@@ -106,6 +105,14 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
         # Récupère le texte renvoyé par l'API OpenAI
         text = resp.output[0].content[0].text
 
+        raw_q = payload.question
+        match = re.search(r'Has recibido esta pregunta:\s*"([^"]+)"', raw_q)
+        if match:
+            real_question = match.group(1)
+        else:
+            # fallback si jamais la regex ne trouve rien
+            real_question = raw_q.strip()
+
         # Enregistre la Q/R dans l'historique
         conn = sqlite3.connect(DB_PATH)
         conn.execute(
@@ -115,7 +122,7 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
             """,
             (
                 payload.client_id,
-                payload.question,
+                real_question,
                 text,
                 datetime.datetime.utcnow().isoformat(),
             ),
