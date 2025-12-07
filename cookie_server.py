@@ -11,7 +11,6 @@ class Question(BaseModel):
     question: str
 
 SYSTEM_PROMPT = """
-Bienvenido a la app de cookie.
 """
 
 @app.post("/cookie")
