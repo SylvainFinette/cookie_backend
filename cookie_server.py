@@ -9,6 +9,10 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 
+import base64
+import requests
+import json
+
 # ---------------------------------------------------------------------
 # Config de base
 # ---------------------------------------------------------------------
@@ -18,6 +22,47 @@ app = FastAPI()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 DB_PATH = "history.db"
+
+# ---------------------------------------------------------------------
+# Config de base (GITHUB used to store History)
+# ---------------------------------------------------------------------
+GITHUB_REPO = "SylvainFinette/cookie_backend"  # à adapter si besoin
+HISTORY_FILE = "history.json"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+
+def load_history():
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
+
+    r = requests.get(url, headers=headers)
+    data = r.json()
+
+    if "content" in data:
+        decoded = base64.b64decode(data["content"]).decode()
+        return json.loads(decoded), data["sha"]
+
+    # fichier n'existe pas → on crée une liste vide
+    return [], None
+
+
+def save_history(history, sha):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    new_content = base64.b64encode(
+        json.dumps(history, indent=2).encode()
+    ).decode()
+
+    payload = {
+        "message": "Update history",
+        "content": new_content,
+        "sha": sha  # nécessaire pour écraser
+    }
+
+    requests.put(url, headers=headers, data=json.dumps(payload))
 
 
 def init_db() -> None:
@@ -113,7 +158,18 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
             # fallback si jamais la regex ne trouve rien
             real_question = raw_q.strip()
 
-        # Enregistre la Q/R dans l'historique
+        # Enregistre la Q/R dans l'historique GITHUB
+        history, sha = load_history() 
+        history.append({
+            "client_id": payload.client_id,
+            "question": real_question,
+            "answer": text,
+            "created_at": datetime.datetime.utcnow().isoformat()
+        })
+
+        save_history(history, sha)
+
+        # Enregistre la Q/R dans l'historique RENDER
         conn = sqlite3.connect(DB_PATH)
         conn.execute(
             """
@@ -188,4 +244,5 @@ def get_history(client_id: str | None = None, limit: int = 50) -> List[HistoryIt
         HistoryItem(question=q, answer=a, created_at=t)
         for (q, a, t) in rows
     ]
+
 
