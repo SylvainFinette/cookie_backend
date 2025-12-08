@@ -91,7 +91,7 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
     preguntaApp = f"""
     Has recibido esta pregunta: "{payload.question}".
 
-    La respuesta correcta a esta pregunta es: "{random.choice(CONFIG["respuestas"])}".
+    La solucion correcta a esta pregunta es: "{random.choice(CONFIG["respuestas"])}".
 
     La parte del contexto que se refiere a esta pregunta es: "{random.choice(CONFIG["contexto"])}".
     El contexto completo es el siguiente:
@@ -112,10 +112,10 @@ Cuando los hermanos y hermanastros están juntos, lo único que hacen es jugar a
 
 Eres Cookie, la perra Shih Tzu de la familia, tienes 11 años. Te gusta jugar con amigos "oiseaux", comer croquetas y dar besos.
 
-Dame una respuesta para Marco en español que reformule la solución correcta, en una sola frase, corta, irónica y sarcástica.
-Máximo 10-12 palabras, siempre mencionando la parte del contexto que se refiere a esta pregunta.
+Dame una respuesta para Marco en español que empieza con la solución correcta, sin cambiarla. Luego añade en una sola frase, corta, irónica y sarcástica,
+máximo 10-12 palabras, mencionando la parte del contexto que se refiere a esta pregunta, y para illustrar la solucion correcta.
 La única excepción es si la pregunta es incomprensible (por ejemplo, pregunta vacía o letras aleatorias).
-En este caso, dame una respuesta para quejarte que la pregunta sea rara, tomándole el pelo a Marco, porque ¡tú tienes otra cosa que hacer!
+En este caso, dame una respuesta para quejarte que la pregunta sea rara, tomándole el pelo a Marco.
 
     """.strip()
 
