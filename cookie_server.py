@@ -118,6 +118,10 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
     La parte del contexto que se refiere a esta pregunta es: "{random.choice(CONFIG["contexto"])}".
     """.strip()
 
+    # 🔥 LOG que tu peux voir dans Render
+    print("\n\n===== preguntaApp ENVOYÉE À OPENAI =====")
+    print(preguntaApp)
+
     try:
         resp = client.responses.create(
             model="gpt-4.1-mini",
@@ -129,6 +133,14 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
         )
 
         text = resp.output[0].content[0].text
+
+
+        # 🔥 LOG que tu peux voir dans Render
+        print("\n\n===== text RECU DE OPENAI =====")
+        print(text)
+        print("========================================\n")
+
+
         return CookieReply(reply=text)
 
     except Exception as e:
