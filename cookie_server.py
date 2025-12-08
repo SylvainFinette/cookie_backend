@@ -13,6 +13,13 @@ import base64
 import requests
 import json
 
+class HistoryItem(BaseModel):
+    client_id: str | None = None
+    question: str
+    answer: str
+    created_at: str
+
+
 # ---------------------------------------------------------------------
 # Config de base
 # ---------------------------------------------------------------------
@@ -234,11 +241,8 @@ def clear_all_history():
 from typing import Optional
 from fastapi import Query
 
-@app.get("/history", response_model=list[CookieReply])
-async def get_history(
-    client_id: Optional[str] = Query(default=None),
-    limit: int = 50,
-):
+@app.get("/history", response_model=list[HistoryItem])
+async def get_history(client_id: str | None = None, limit: int = 50):
     try:
         all_items = load_history_from_github()
 
