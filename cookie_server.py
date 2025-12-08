@@ -1,24 +1,7 @@
 import os
-import sqlite3
-import datetime
-from typing import List
-import re
-
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
-
-import base64
-import requests
-import json
-
-class HistoryItem(BaseModel):
-    client_id: str | None = None
-    question: str
-    answer: str
-    created_at: str
-
 
 # ---------------------------------------------------------------------
 # Config de base
@@ -28,94 +11,6 @@ app = FastAPI()
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-DB_PATH = "history.db"
-
-# ---------------------------------------------------------------------
-# Config de base (GITHUB used to store History)
-# ---------------------------------------------------------------------
-GITHUB_REPO = "SylvainFinette/cookie_backend"  # à adapter si besoin
-HISTORY_FILE = "history.json"
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-
-GITHUB_HEADERS = {
-    "Authorization": f"Bearer {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github+json",
-}
-
-def load_history_from_github() -> list[dict]:
-    """
-    Lit le fichier history.json sur GitHub et renvoie une liste de dicts.
-    """
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
-    r = requests.get(url, headers=GITHUB_HEADERS)
-
-    if r.status_code == 404:
-        # pas encore de fichier
-        return []
-
-    r.raise_for_status()
-    data = r.json()
-    content_b64 = data["content"]
-    raw = base64.b64decode(content_b64).decode("utf-8")
-    history = json.loads(raw)
-    # on suppose que c'est une LISTE de lignes {client_id, question, answer, created_at}
-    return history
-
-def load_history():
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
-    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
-
-    r = requests.get(url, headers=headers)
-    data = r.json()
-
-    if "content" in data:
-        decoded = base64.b64decode(data["content"]).decode()
-        return json.loads(decoded), data["sha"]
-
-    # fichier n'existe pas → on crée une liste vide
-    return [], None
-
-
-def save_history(history, sha):
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    new_content = base64.b64encode(
-        json.dumps(history, indent=2).encode()
-    ).decode()
-
-    payload = {
-        "message": "Update history",
-        "content": new_content,
-        "sha": sha  # nécessaire pour écraser
-    }
-
-    requests.put(url, headers=headers, data=json.dumps(payload))
-
-
-def init_db() -> None:
-    """Création de la table d'historique si elle n'existe pas."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id  TEXT,
-            question   TEXT,
-            answer     TEXT,
-            created_at TEXT
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
-init_db()
-
 # ---------------------------------------------------------------------
 # Modèles de données
 # ---------------------------------------------------------------------
@@ -123,17 +18,12 @@ init_db()
 
 class CookieRequest(BaseModel):
     question: str
+    # gardé pour compatibilité avec l'app, mais ignoré côté serveur
     client_id: str | None = None
 
 
 class CookieReply(BaseModel):
     reply: str
-
-
-class HistoryItem(BaseModel):
-    question: str
-    answer: str
-    created_at: str
 
 
 SYSTEM_PROMPT = """
@@ -168,6 +58,11 @@ En este caso, dame una respuesta para quejarte que la pregunta sea rara, tománd
 
 @app.post("/cookie", response_model=CookieReply)
 async def cookie_reply(payload: CookieRequest) -> CookieReply:
+    """
+    Reçoit la question déjà formatée par l'app (avec la "respuesta correcta" et el contexto),
+    envoie tout ça à OpenAI, et renvoie juste la phrase de Cookie.
+    Aucun stockage, aucune base, aucun GitHub. Zen.
+    """
     try:
         resp = client.responses.create(
             model="gpt-4.1-mini",
@@ -178,46 +73,7 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
             max_output_tokens=60,
         )
 
-        # Récupère le texte renvoyé par l'API OpenAI
         text = resp.output[0].content[0].text
-
-        raw_q = payload.question
-        match = re.search(r'Has recibido esta pregunta:\s*"([^"]+)"', raw_q)
-        if match:
-            real_question = match.group(1)
-        else:
-            # fallback si jamais la regex ne trouve rien
-            real_question = raw_q.strip()
-
-        if real_question != "ping": 
-            # Enregistre la Q/R dans l'historique GITHUB
-            history, sha = load_history() 
-            history.append({
-                "client_id": payload.client_id,
-                "question": real_question,
-                "answer": text,
-                "created_at": datetime.datetime.utcnow().isoformat()
-            })
-
-            save_history(history, sha)
-
-            # Enregistre la Q/R dans l'historique RENDER
-            conn = sqlite3.connect(DB_PATH)
-            conn.execute(
-            """
-            INSERT INTO history (client_id, question, answer, created_at)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                payload.client_id,
-                real_question,
-                text,
-                datetime.datetime.utcnow().isoformat(),
-            ),
-            )
-            conn.commit()
-            conn.close()
-
         return CookieReply(reply=text)
 
     except Exception as e:
@@ -225,35 +81,8 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
         raise HTTPException(status_code=500, detail="Cookie ha tenido un mal día")
 
 
-@app.delete("/history/clear_all")
-def clear_all_history():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DELETE FROM history")
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "message": "History cleared"}
-
-# ---------------------------------------------------------------------
-# Endpoint historique : /history
-# ---------------------------------------------------------------------
-
-
-from typing import Optional
-from fastapi import Query
-
-@app.get("/history", response_model=list[HistoryItem])
-async def get_history(client_id: str | None = None, limit: int = 50):
-    try:
-        all_items = load_history_from_github()
-
-        if client_id:
-            all_items = [h for h in all_items if h.get("client_id") == client_id]
-
-        # tri du plus récent au plus ancien
-        all_items.sort(key=lambda h: h.get("created_at", ""), reverse=True)
-
-        return all_items[:limit]
-    except Exception as e:
-        print("ERROR in /history:", repr(e))
-        raise HTTPException(status_code=500, detail="Impossible de lire l'historique GitHub")
+# Petit endpoint santé si tu veux tester vite fait
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
