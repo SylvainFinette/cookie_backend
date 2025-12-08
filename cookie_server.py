@@ -59,7 +59,8 @@ CONFIG = {
         "Cookie",
         "Fagot",
         "Marseille",
-        "PHD"
+        "PHD",
+        "cabronazo"
     ]
 }
 
