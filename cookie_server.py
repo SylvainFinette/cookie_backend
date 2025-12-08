@@ -30,6 +30,30 @@ GITHUB_REPO = "SylvainFinette/cookie_backend"  # à adapter si besoin
 HISTORY_FILE = "history.json"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
+GITHUB_HEADERS = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json",
+}
+
+def load_history_from_github() -> list[dict]:
+    """
+    Lit le fichier history.json sur GitHub et renvoie une liste de dicts.
+    """
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
+    r = requests.get(url, headers=GITHUB_HEADERS)
+
+    if r.status_code == 404:
+        # pas encore de fichier
+        return []
+
+    r.raise_for_status()
+    data = r.json()
+    content_b64 = data["content"]
+    raw = base64.b64decode(content_b64).decode("utf-8")
+    history = json.loads(raw)
+    # on suppose que c'est une LISTE de lignes {client_id, question, answer, created_at}
+    return history
+
 def load_history():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{HISTORY_FILE}"
     headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
@@ -158,20 +182,21 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
             # fallback si jamais la regex ne trouve rien
             real_question = raw_q.strip()
 
-        # Enregistre la Q/R dans l'historique GITHUB
-        history, sha = load_history() 
-        history.append({
-            "client_id": payload.client_id,
-            "question": real_question,
-            "answer": text,
-            "created_at": datetime.datetime.utcnow().isoformat()
-        })
+        if real_question != "ping": 
+            # Enregistre la Q/R dans l'historique GITHUB
+            history, sha = load_history() 
+            history.append({
+                "client_id": payload.client_id,
+                "question": real_question,
+                "answer": text,
+                "created_at": datetime.datetime.utcnow().isoformat()
+            })
 
-        save_history(history, sha)
+            save_history(history, sha)
 
-        # Enregistre la Q/R dans l'historique RENDER
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute(
+            # Enregistre la Q/R dans l'historique RENDER
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
             """
             INSERT INTO history (client_id, question, answer, created_at)
             VALUES (?, ?, ?, ?)
@@ -182,9 +207,9 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
                 text,
                 datetime.datetime.utcnow().isoformat(),
             ),
-        )
-        conn.commit()
-        conn.close()
+            )
+            conn.commit()
+            conn.close()
 
         return CookieReply(reply=text)
 
@@ -206,43 +231,25 @@ def clear_all_history():
 # ---------------------------------------------------------------------
 
 
-@app.get("/history", response_model=List[HistoryItem])
-def get_history(client_id: str | None = None, limit: int = 50) -> List[HistoryItem]:
-    """
-    Renvoie l'historique des questions/réponses.
+from typing import Optional
+from fastapi import Query
 
-    - Si client_id est fourni : historique pour ce client.
-    - Sinon : historique global (pour debug).
-    """
-    conn = sqlite3.connect(DB_PATH)
+@app.get("/history", response_model=list[CookieReply])
+async def get_history(
+    client_id: Optional[str] = Query(default=None),
+    limit: int = 50,
+):
+    try:
+        all_items = load_history_from_github()
 
-    if client_id:
-        rows = conn.execute(
-            """
-            SELECT question, answer, created_at
-            FROM history
-            WHERE client_id = ?
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (client_id, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """
-            SELECT question, answer, created_at
-            FROM history
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        if client_id:
+            all_items = [h for h in all_items if h.get("client_id") == client_id]
 
-    conn.close()
+        # tri du plus récent au plus ancien
+        all_items.sort(key=lambda h: h.get("created_at", ""), reverse=True)
 
-    return [
-        HistoryItem(question=q, answer=a, created_at=t)
-        for (q, a, t) in rows
-    ]
-
+        return all_items[:limit]
+    except Exception as e:
+        print("ERROR in /history:", repr(e))
+        raise HTTPException(status_code=500, detail="Impossible de lire l'historique GitHub")
 
