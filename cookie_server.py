@@ -26,6 +26,50 @@ class CookieReply(BaseModel):
     reply: str
 
 
+# ----------------------------
+# Config contrôlée par backend
+# ----------------------------
+
+CONFIG = {
+    "respuestas": [
+        "Sí.",
+        "No.",
+        "No tengo ni idea.",
+        "Por supuesto que sí.",
+        "Mala idea.",
+        "Tú ya sabes la respuesta.",
+        "Depende.",
+        "Pregunta otra vez luego."
+    ],
+    "contexto": [
+        "Maxime",
+        "Germain",
+        "Sarah",
+        "Hector",
+        "Thomas",
+        "Chef de Famille",
+        "Monte Gordo",
+        "Purée y salchichas",
+        "Froidefontaine",
+        "Mamyline",
+        "Grand-Pere",
+        "Maria",
+        "Cookie",
+        "Fagot",
+        "Marseille",
+        "PHD"
+    ]
+}
+
+@app.get("/config")
+async def get_config():
+    """
+    Renvoie la configuration dynamique utilisée par l'app.
+    Cela permet de changer les listes sans recompiler l'APK.
+    """
+    return CONFIG
+
+
 SYSTEM_PROMPT = """
 El contexto completo es el siguiente:
 El que te pregunta se llama Marco, tiene 24 años, es español.
@@ -63,12 +107,21 @@ async def cookie_reply(payload: CookieRequest) -> CookieReply:
     envoie tout ça à OpenAI, et renvoie juste la phrase de Cookie.
     Aucun stockage, aucune base, aucun GitHub. Zen.
     """
+    # On fabrique ici la frase "preguntaApp"
+    preguntaApp = f"""
+    Has recibido esta pregunta: "{payload.question}".
+
+    La respuesta correcta a esta pregunta es: "{random.choice(CONFIG["respuestas"])}".
+
+    La parte del contexto que se refiere a esta pregunta es: "{random.choice(CONFIG["contexto"])}".
+    """.strip()
+
     try:
         resp = client.responses.create(
             model="gpt-4.1-mini",
             input=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": payload.question},
+                {"role": "user", "content": preguntaApp},
             ],
             max_output_tokens=60,
         )
