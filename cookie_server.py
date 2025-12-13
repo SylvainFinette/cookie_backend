@@ -185,3 +185,35 @@ En este caso, dame una respuesta para quejarte que la pregunta sea rara, tománd
 async def health():
     return {"status": "ok"}
 
+@app.get("/warmup")
+async def warmup():
+    return {"ok": True}
+
+NUDGE_SYSTEM = (
+    "Eres Cookie. Escribes UNA sola frase corta (max 12 palabras), "
+    "absurda, ligeramente motivadora y sarcástica, sobre el tema de ser un cabronazo "
+    "No hagas preguntas. No uses emojis. No uses comillas."
+)
+
+NUDGE_FALLBACK = [
+    "Hoy no hay señales. Solo tu ansiedad y una patita.",
+    "El universo está ocupado. Intenta no ser tú mientras esperas.",
+    "Render duerme. Tú también deberías."
+]
+
+@app.get("/nudge")
+async def nudge():
+    try:
+        r = client.responses.create(
+            model="gpt-5.2",
+            input=[
+                {"role": "system", "content": NUDGE_SYSTEM},
+                {"role": "user", "content": "Dame la frase."},
+            ],
+            max_output_tokens=30,
+        )
+        text = r.output[0].content[0].text.strip()
+        return {"text": text}
+    except Exception as e:
+        print("ERROR in /nudge:", repr(e))
+        return {"text": random.choice(NUDGE_FALLBACK)}
