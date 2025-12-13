@@ -126,7 +126,7 @@ En este caso, dame una respuesta para quejarte que la pregunta sea rara, tománd
 
     try:
         resp = client.responses.create(
-            model="gpt-4o-mini",
+            model="gpt-5.2",
             input=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": preguntaApp},
