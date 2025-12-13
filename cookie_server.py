@@ -1,32 +1,58 @@
 import os
-from fastapi import FastAPI, HTTPException
+import random
+from time import time
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from openai import OpenAI
-import random
-
 
 # ---------------------------------------------------------------------
 # Config de base
 # ---------------------------------------------------------------------
 
 app = FastAPI()
-
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+# ---------------------------------------------------------------------
+# Rate limiting (simple, en mémoire)
+# ---------------------------------------------------------------------
+
+MAX_REQUESTS_PER_DAY = 20
+WINDOW = 24 * 60 * 60  # 24h en secondes
+request_log: dict[str, list[float]] = {}
+
+LIMIT_MESSAGES = [
+    "Has preguntado bastante por hoy. El universo necesita descansar. Hablamos mañana.",
+    "Vale ya por hoy. El más allá se ha ido a dormir.",
+    "Demasiadas preguntas. El oráculo te ignora hasta mañana.",
+    "El universo pone límite. Mañana seguimos.",
+    "Cookie te mira en silencio. Mañana será otro día."
+]
+
+def rate_limit(client_id: str) -> bool:
+    now = time()
+    log = request_log.get(client_id, [])
+
+    # on garde seulement les requêtes des dernières 24h
+    log = [t for t in log if now - t < WINDOW]
+
+    if len(log) >= MAX_REQUESTS_PER_DAY:
+        request_log[client_id] = log
+        return False
+
+    log.append(now)
+    request_log[client_id] = log
+    return True
 
 # ---------------------------------------------------------------------
 # Modèles de données
 # ---------------------------------------------------------------------
 
-
 class CookieRequest(BaseModel):
     question: str
-    # gardé pour compatibilité avec l'app, mais ignoré côté serveur
-    client_id: str | None = None
-
+    client_id: str | None = None  # gardé pour compatibilité, ignoré
 
 class CookieReply(BaseModel):
     reply: str
-
 
 # ----------------------------
 # Config contrôlée par backend
@@ -66,12 +92,7 @@ CONFIG = {
 
 @app.get("/config")
 async def get_config():
-    """
-    Renvoie la configuration dynamique utilisée par l'app.
-    Cela permet de changer les listes sans recompiler l'APK.
-    """
     return CONFIG
-
 
 SYSTEM_PROMPT = """
 """
@@ -80,15 +101,23 @@ SYSTEM_PROMPT = """
 # Endpoint principal : /cookie
 # ---------------------------------------------------------------------
 
-
 @app.post("/cookie", response_model=CookieReply)
-async def cookie_reply(payload: CookieRequest) -> CookieReply:
+async def cookie_reply(payload: CookieRequest, request: Request) -> CookieReply:
     """
-    Reçoit la question déjà formatée par l'app (avec la "respuesta correcta" et el contexto),
-    envoie tout ça à OpenAI, et renvoie juste la phrase de Cookie.
-    Aucun stockage, aucune base, aucun GitHub. Zen.
+    Endpoint principal.
+    Rate limité côté backend pour éviter toute dérive.
     """
-    # On fabrique ici la frase "preguntaApp"
+
+    # 👉 identification simple par IP
+    client_ip = request.client.host if request.client else "unknown"
+
+    # 🚫 rate limit
+    if not rate_limit(client_ip):
+        return CookieReply(
+            reply=random.choice(LIMIT_MESSAGES)
+        )
+
+    # Construction de la question envoyée à OpenAI
     preguntaApp = f"""
     Has recibido esta pregunta: "{payload.question}".
 
@@ -118,10 +147,10 @@ máximo 10-12 palabras, mencionando la parte del contexto que se refiere a esta 
 La única excepción es si la pregunta es incomprensible (por ejemplo, pregunta vacía o letras aleatorias).
 En este caso, dame una respuesta para quejarte que la pregunta sea rara, tomándole el pelo a Marco.
 
-    """.strip()
 
-    # 🔥 LOG que tu peux voir dans Render
-    print("\n\n===== preguntaApp ENVOYÉE À OPENAI =====")
+""".strip()
+
+    print("\n===== preguntaApp ENVIADA =====")
     print(preguntaApp)
 
     try:
@@ -136,21 +165,22 @@ En este caso, dame una respuesta para quejarte que la pregunta sea rara, tománd
 
         text = resp.output[0].content[0].text
 
-
-        # 🔥 LOG que tu peux voir dans Render
-        print("\n\n===== text RECU DE OPENAI =====")
+        print("\n===== RESPUESTA OPENAI =====")
         print(text)
-        print("========================================\n")
-
+        print("============================\n")
 
         return CookieReply(reply=text)
 
     except Exception as e:
         print("ERROR in /cookie:", repr(e))
-        raise HTTPException(status_code=500, detail="Cookie ha tenido un mal día")
+        return CookieReply(
+            reply="No preguntes detalles: el más allá estaba fuera de cobertura."
+        )
 
+# ---------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------
 
-# Petit endpoint santé si tu veux tester vite fait
 @app.get("/health")
 async def health():
     return {"status": "ok"}
