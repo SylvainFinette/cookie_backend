@@ -170,17 +170,21 @@ async def health():
 
 @app.get("/warmup")
 async def warmup():
-    print("Keep it warm...")
+    print("Wack-up")
     return {"ok": True}
 
+@app.get("/keepitwarm")
+async def warmup():
+    print("Keep it warm...")
+    return {"ok": True}
 
 # Prompt notification
 
 
 NUDGE_SYSTEM = f"""
-Eres Cookie. Escribes un paragrafo (max 20 palabras),
-absurdo, ligeramente motivador y sarcástico, sobre lo que Marco podria hacer para ser feliz, segun el contexto abajo.
-    {CONTEXT_MARCO}
+Eres Cookie. Escribes una frase de maximum 20 palabras,
+absurda, ligeramente motivadora y sarcástica, sobre lo que Marco podria hacer para ser feliz, segun el contexto abajo.
+{CONTEXT_MARCO}
 """.strip()
 
 NUDGE_FALLBACK = [
