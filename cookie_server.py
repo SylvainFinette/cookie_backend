@@ -175,6 +175,9 @@ async def warmup():
 
 # Prompt notification
 
+@app.get("/nudge")
+async def nudge():
+
     NUDGE_SYSTEM = f"""
 Eres Cookie. Escribes un paragrafo (max 20 palabras),
 absurdo, ligeramente motivador y sarcástico, sobre lo que Marco podria hacer para ser feliz, segun el contexto abajo.
@@ -314,8 +317,6 @@ NUDGE_FALLBACK = [
 "Pregunta ya: Cookie no tiene todo el día, cabronazo."
 ]
 
-@app.get("/nudge")
-async def nudge():
     try:
         r = client.responses.create(
             model="gpt-5.2",
