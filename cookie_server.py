@@ -322,12 +322,18 @@ async def nudge():
         r = client.responses.create(
             model="gpt-5.2",
             input=[
-                {"role": "system", "content": NUDGE_SYSTEM},
-                {"role": "user", "content": "Dame la frase."},
+                {"role": "system", "content": ""},
+                {"role": "user", "content": NUDGE_SYSTEM},
             ],
-            max_output_tokens=30,
+            max_output_tokens=50,
         )
+
+        print("\n===== NUDGE_SYSTEM =====")
+        print(NUDGE_SYSTEM)
+
         text = r.output[0].content[0].text.strip()
+        print("\n===== NOTIFICATION =====")
+        print(text)
         return {"text": text}
     except Exception as e:
         print("ERROR in /nudge:", repr(e))
