@@ -169,6 +169,7 @@ async def health():
 
 @app.get("/warmup")
 async def warmup():
+    print("Keep it warm...")
     return {"ok": True}
 
 
