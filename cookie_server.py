@@ -64,7 +64,6 @@ CONFIG = {
         "No.",
         "No tengo ni idea.",
         "Por supuesto que sí.",
-        "Mala idea.",
         "Tú ya sabes la respuesta.",
         "Depende.",
         "Pregunta otra vez luego."
