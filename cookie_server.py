@@ -182,6 +182,11 @@ async def warmup():
     print("Keep it warm...")
     return {"ok": True}
 
+@app.api_route("/keepithot", methods=["GET", "HEAD"])
+def keepitwarm():
+    print("Keep it hot...")
+    return {"status": "awake"}
+
 # Prompt notification
 
 
