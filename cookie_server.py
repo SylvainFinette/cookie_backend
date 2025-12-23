@@ -65,8 +65,7 @@ CONFIG = {
         "No tengo ni idea.",
         "Por supuesto que sí.",
         "Tú ya sabes la respuesta.",
-        "Depende.",
-        "Pregunta otra vez luego."
+        "Depende."
     ],
     "contexto": [
         "Maxime",
