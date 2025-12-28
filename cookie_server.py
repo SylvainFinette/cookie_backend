@@ -191,7 +191,7 @@ def keepitwarm():
 
 NUDGE_SYSTEM = f"""
 Escribes una frase de maximum 20 palabras,
-absurda, ligeramente motivadora y sarcástica, para informar a Marco sobre algo extraordinario que podria pasar si se connecta a la app, utilizando el contexto siguiente.
+absurda, ligeramente motivadora y sarcástica, para recordar a Marco que ha perdido la coinche por 20 puntos y utilizando el contexto siguiente.
 {CONTEXT_MARCO_NOT}
 """.strip()
 
