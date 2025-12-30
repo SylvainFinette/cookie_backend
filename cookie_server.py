@@ -191,7 +191,7 @@ def keepitwarm():
 
 NUDGE_SYSTEM = f"""
 Escribes una frase de maximum 20 palabras,
-absurda, ligeramente motivadora y sarcástica, para informar a Marco que la gorda esta enamorada de el y utilizando el contexto siguiente.
+absurda, ligeramente motivadora y sarcástica, para informar a Marco que hoy se ofrece precio excepcional para una masterclass de coinche, animado por Eric y Chef de Famille,y que se deberia apuntar ya.
 {CONTEXT_MARCO_NOT}
 """.strip()
 
